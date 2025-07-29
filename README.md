@@ -87,12 +87,6 @@ A smart, database-driven inventory management system tailored for FMCG businesse
 
 ---
 
-## Resume Description (Add to CV)
-
-> **Smart Inventory + Expiry Tracker** – Built a robust DBMS for real-time inventory tracking with automated reordering and expiry alerts. Integrated ML models to forecast sales, predict spoilage, and suggest discounts, reducing stock wastage and improving operational efficiency for small-scale FMCG setups.
-
----
-
 ## Setup Instructions
 
 ### Requirements
