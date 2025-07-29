@@ -15,9 +15,9 @@ A smart, database-driven inventory management system tailored for FMCG businesse
 - **Expiry Alerts:** Get alerts for products nearing expiry using SQL views.
 
 ### Smart Additions (ML-Driven)
-- ** Sales Forecasting:** Predict future demand using historical sales data.
-- ** Spoilage Prediction:** Identify items likely to expire before being sold.
-- ** Dynamic Discounting:** Recommend discounts based on expiry proximity and demand.
+- **Sales Forecasting:** Predict future demand using historical sales data.
+- **Spoilage Prediction:** Identify items likely to expire before being sold.
+- **Dynamic Discounting:** Recommend discounts based on expiry proximity and demand.
 
 ---
 
