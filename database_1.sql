@@ -42,6 +42,18 @@ CREATE TABLE Sales (
     FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
 );
 
+CREATE TABLE PurchaseOrders (
+    OrderID INT AUTO_INCREMENT PRIMARY KEY,
+    ProductID VARCHAR(20),
+    QuantityOrdered INT,
+    OrderDate DATE,
+    SupplierID VARCHAR(20),
+    Status ENUM('Pending', 'Ordered', 'Received') DEFAULT 'Pending',
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID),
+    FOREIGN KEY (SupplierID) REFERENCES Suppliers(SupplierID)
+);
+
+
 -- Expiry Alerts View
 DROP VIEW IF EXISTS ExpiryAlerts;
 CREATE VIEW ExpiryAlerts AS
@@ -56,3 +68,43 @@ FROM Inventory i
 JOIN Products p ON i.ProductID = p.ProductID
 WHERE i.ExpirationDate IS NOT NULL
   AND i.ExpirationDate BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+
+
+DELIMITER $$
+
+CREATE TRIGGER AutoReorder
+AFTER UPDATE ON Inventory
+FOR EACH ROW
+BEGIN
+    -- Check if stock fell below reorder level
+    IF NEW.StockQuantity < NEW.ReorderLevel THEN
+        INSERT INTO PurchaseOrders (
+            ProductID,
+            QuantityOrdered,
+            OrderDate,
+            SupplierID
+        )
+        VALUES (
+            NEW.ProductID,
+            NEW.ReorderQuantity,
+            CURDATE(),
+            (SELECT SupplierID FROM Products WHERE ProductID = NEW.ProductID)
+        );
+    END IF;
+END $$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE TRIGGER ReduceInventoryOnSale
+AFTER INSERT ON Sales
+FOR EACH ROW
+BEGIN
+    UPDATE Inventory
+    SET StockQuantity = GREATEST(StockQuantity - NEW.SalesVolume, 0),
+        LastOrderDate = CURDATE()
+    WHERE ProductID = NEW.ProductID;
+END $$
+
+DELIMITER ;
