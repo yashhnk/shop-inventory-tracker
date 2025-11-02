@@ -17,14 +17,15 @@ def get_db_connection():
         host="localhost",
         user="root",
         password="aneesh",
-        database="SmartInventory"
+        database="SmartInventory",
+        auth_plugin="mysql_native_password"
     )
 
 # ---------------------------
 # Load ML Models
 # ---------------------------
 demand_model = joblib.load("demandforecastingmodel.pkl")
-spoilage_model = joblib.load("spoilage_model (1).pkl")
+spoilage_model = joblib.load("spoilage_model.pkl")
 
 # ---------------------------
 # API 1: Get Products
@@ -38,7 +39,7 @@ def get_products():
         SELECT 
             p.ProductID AS id,
             p.ProductName AS name,
-            p.Catagory AS category,
+            p.Category AS category,       -- fixed the spelling
             p.UnitPrice AS unitPrice,
             'Unknown' AS supplier,
             i.ReorderLevel AS reorderLevel,
@@ -64,6 +65,7 @@ def get_products():
     cursor.close()
     conn.close()
     return jsonify(df.to_dict(orient="records"))
+
 
 # ---------------------------
 # ✅ NEW API: Dashboard Metrics
@@ -121,6 +123,7 @@ def demand_forecast():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
+    # Query only existing columns; we’ll fill the rest with 0 in the DataFrame
     cursor.execute("""
         SELECT 
             p.ProductID,
@@ -140,17 +143,26 @@ def demand_forecast():
     cursor.close()
     conn.close()
 
-    # Convert to DataFrame and remove duplicates
     df = pd.DataFrame(products).drop_duplicates(subset=["ProductID"])
-    df = df.fillna(0)  # handle any missing values
+    df = df.fillna(0)
 
-    # Ensure correct column order for prediction
-    feature_cols = ["StockQuantity", "ReorderLevel", "ReorderQuantity", "UnitPrice", "SalesVolume"]
+    # Add missing feature columns (default = 0)
+    required_features = [
+        "StockQuantity", "ReorderLevel", "ReorderQuantity", "UnitPrice",
+        "SalesVolume", "SalesRevenue", "ReturnRate", "DaysSinceLastRestock",
+        "SupplierRating", "StorageTemperature", "StorageHumidity",
+        "DemandFluctuationIndex", "SeasonalFactor", "TransportDelayDays",
+        "LeadTime", "DemandVolatility", "ExpirationRisk", "SupplyStability"
+    ]
+    for col in required_features:
+        if col not in df.columns:
+            df[col] = 0.0
 
+    # Predict using all 18 features
     forecasts = []
     for _, p in df.iterrows():
         try:
-            features = np.array([[p[c] for c in feature_cols]], dtype=float)
+            features = np.array([[p[c] for c in required_features]], dtype=float)
             predicted_demand = float(demand_model.predict(features)[0])
         except Exception as e:
             print(f"Prediction error for {p['ProductName']}: {e}")
@@ -162,6 +174,8 @@ def demand_forecast():
         })
 
     return jsonify(forecasts)
+
+
 
 
 # ---------------------------
