@@ -7,7 +7,6 @@ interface Product {
   name: string;
   category: string;
   unitPrice: number;
-  supplier: string;
   reorderLevel: number;
   currentStock: number;
   status: 'active' | 'low-stock' | 'out-of-stock';
@@ -19,7 +18,6 @@ const Products: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [loading, setLoading] = useState(true);
 
-  // Fetch products from Flask backend
   useEffect(() => {
     fetch('http://localhost:5000/api/products')
       .then((res) => res.json())
@@ -58,7 +56,6 @@ const Products: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Products Management</h1>
@@ -70,10 +67,8 @@ const Products: React.FC = () => {
         </button>
       </div>
 
-      {/* Filters */}
       <Card>
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -85,7 +80,6 @@ const Products: React.FC = () => {
             />
           </div>
 
-          {/* Category Filter */}
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <select
@@ -103,7 +97,6 @@ const Products: React.FC = () => {
         </div>
       </Card>
 
-      {/* Products Table */}
       <Card title="Product Catalog" subtitle={`${filteredProducts.length} products found`}>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -114,7 +107,6 @@ const Products: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -150,9 +142,6 @@ const Products: React.FC = () => {
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(product.status)}`}>
                       {product.status.replace('-', ' ')}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {product.supplier}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
