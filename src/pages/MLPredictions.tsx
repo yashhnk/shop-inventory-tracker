@@ -15,16 +15,22 @@ export default function MLPredictions() {
         const demandData = demandRes.data.map((item: any) => ({
           product: item.product || item.Category || item.item || "Unknown",
           predictedDemand:
-            item.predictedDemand || item.Predicted_Demand || item.prediction || 0,
+            item.predictedDemand ||
+            item.Predicted_Demand ||
+            item.prediction ||
+            0,
         }));
 
         const spoilageData = spoilageRes.data.map((item: any) => ({
           product: item.product || item.Category || item.item || "Unknown",
-          spoilageRisk:
-            item.spoilageRisk ||
-            item.Spoilage_Risk ||
-            item.risk ||
-            0,
+          willExpire:
+            item.WillExpire !== undefined
+              ? item.WillExpire
+              : item.willExpire !== undefined
+              ? item.willExpire
+              : item.spoilageRisk !== undefined
+              ? Math.round(item.spoilageRisk)
+              : 0,
         }));
 
         // ✅ Remove duplicates by product name
@@ -65,7 +71,9 @@ export default function MLPredictions() {
               demandForecasts.map((item, i) => (
                 <tr key={i} className="border-b hover:bg-gray-50">
                   <td className="p-3 font-medium text-gray-800">{item.product}</td>
-                  <td className="p-3 text-gray-700">{item.predictedDemand.toFixed(2)}</td>
+                  <td className="p-3 text-gray-700">
+                    {item.predictedDemand.toFixed(2)}
+                  </td>
                 </tr>
               ))
             ) : (
@@ -81,12 +89,17 @@ export default function MLPredictions() {
 
       {/* Spoilage Prediction Section */}
       <div className="bg-white shadow-lg rounded-2xl p-6">
-        <h2 className="text-xl font-semibold mb-4">🧪 Spoilage Risk Prediction</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          🧪 Spoilage Prediction (Binary Classifier)
+        </h2>
+        <p className="text-gray-600 mb-3">
+          This model answers: <strong>“Will this item expire before it gets sold?”</strong>
+        </p>
         <table className="w-full text-left border border-gray-200">
           <thead className="bg-blue-100">
             <tr>
               <th className="p-3">Product</th>
-              <th className="p-3">Spoilage Risk</th>
+              <th className="p-3">Will Expire?</th>
             </tr>
           </thead>
           <tbody>
@@ -94,15 +107,21 @@ export default function MLPredictions() {
               spoilagePredictions.map((item, i) => (
                 <tr key={i} className="border-b hover:bg-gray-50">
                   <td className="p-3 font-medium text-gray-800">{item.product}</td>
-                  <td className="p-3 text-gray-700">
-                    {(item.spoilageRisk * 100).toFixed(1)}%
+                  <td
+                    className={`p-3 font-semibold ${
+                      item.willExpire === 1
+                        ? "text-red-600"
+                        : "text-green-600"
+                    }`}
+                  >
+                    {item.willExpire === 1 ? "Yes" : "No"}
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
                 <td className="p-3 text-center text-gray-500" colSpan={2}>
-                  No spoilage data available
+                  No spoilage prediction data available
                 </td>
               </tr>
             )}
