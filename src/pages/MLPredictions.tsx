@@ -12,17 +12,15 @@ export default function MLPredictions() {
       axios.get("http://127.0.0.1:5000/api/spoilage_prediction"),
     ])
       .then(([demandRes, spoilageRes]) => {
+        // Demand Forecast – show Predicted_Demand directly
         const demandData = demandRes.data.map((item: any) => ({
-          product: item.product || item.Category || item.item || "Unknown",
-          predictedDemand:
-            item.predictedDemand ||
-            item.Predicted_Demand ||
-            item.prediction ||
-            0,
+          product: item.product || "Unknown",
+          Predicted_Demand: Math.max(0, Math.round(item.predictedDemand || 0)),
         }));
 
+        // Spoilage Prediction (unchanged)
         const spoilageData = spoilageRes.data.map((item: any) => ({
-          product: item.product || item.Category || item.item || "Unknown",
+          product: item.product || "Unknown",
           willExpire:
             item.WillExpire !== undefined
               ? item.WillExpire
@@ -33,7 +31,7 @@ export default function MLPredictions() {
               : 0,
         }));
 
-        // ✅ Remove duplicates by product name
+        // Remove duplicates
         const uniqueDemand = demandData.filter(
           (v, i, a) => a.findIndex(t => t.product === v.product) === i
         );
@@ -58,12 +56,12 @@ export default function MLPredictions() {
 
       {/* Demand Forecast Section */}
       <div className="bg-white shadow-lg rounded-2xl p-6">
-        <h2 className="text-xl font-semibold mb-4">📈 Demand Forecast</h2>
+        <h2 className="text-xl font-semibold mb-4">📈 Predicted Demand Forecast</h2>
         <table className="w-full text-left border border-gray-200">
           <thead className="bg-blue-100">
             <tr>
               <th className="p-3">Product</th>
-              <th className="p-3">Predicted Demand</th>
+              <th className="p-3">Predicted_Demand</th>
             </tr>
           </thead>
           <tbody>
@@ -71,9 +69,7 @@ export default function MLPredictions() {
               demandForecasts.map((item, i) => (
                 <tr key={i} className="border-b hover:bg-gray-50">
                   <td className="p-3 font-medium text-gray-800">{item.product}</td>
-                  <td className="p-3 text-gray-700">
-                    {item.predictedDemand.toFixed(2)}
-                  </td>
+                  <td className="p-3 text-gray-700">{item.Predicted_Demand}</td>
                 </tr>
               ))
             ) : (
@@ -87,7 +83,7 @@ export default function MLPredictions() {
         </table>
       </div>
 
-      {/* Spoilage Prediction Section */}
+      {/* Spoilage Prediction Section (unchanged) */}
       <div className="bg-white shadow-lg rounded-2xl p-6">
         <h2 className="text-xl font-semibold mb-4">
           🧪 Spoilage Prediction (Binary Classifier)
@@ -109,9 +105,7 @@ export default function MLPredictions() {
                   <td className="p-3 font-medium text-gray-800">{item.product}</td>
                   <td
                     className={`p-3 font-semibold ${
-                      item.willExpire === 1
-                        ? "text-red-600"
-                        : "text-green-600"
+                      item.willExpire === 1 ? "text-red-600" : "text-green-600"
                     }`}
                   >
                     {item.willExpire === 1 ? "Yes" : "No"}
