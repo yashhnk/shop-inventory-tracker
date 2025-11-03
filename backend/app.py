@@ -120,60 +120,15 @@ def dashboard_metrics():
 # ---------------------------
 @app.route('/api/demand_forecast')
 def demand_forecast():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    # Query only existing columns; we’ll fill the rest with 0 in the DataFrame
-    cursor.execute("""
-        SELECT 
-            p.ProductID,
-            p.ProductName,
-            i.StockQuantity,
-            i.ReorderLevel,
-            i.ReorderQuantity,
-            p.UnitPrice,
-            COALESCE(s.SalesVolume, 0) AS SalesVolume
-        FROM Products p
-        LEFT JOIN Inventory i ON p.ProductID = i.ProductID
-        LEFT JOIN Sales s ON p.ProductID = s.ProductID
-        LIMIT 100;
-    """)
-
-    products = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    df = pd.DataFrame(products).drop_duplicates(subset=["ProductID"])
-    df = df.fillna(0)
-
-    # Add missing feature columns (default = 0)
-    required_features = [
-        "StockQuantity", "ReorderLevel", "ReorderQuantity", "UnitPrice",
-        "SalesVolume", "SalesRevenue", "ReturnRate", "DaysSinceLastRestock",
-        "SupplierRating", "StorageTemperature", "StorageHumidity",
-        "DemandFluctuationIndex", "SeasonalFactor", "TransportDelayDays",
-        "LeadTime", "DemandVolatility", "ExpirationRisk", "SupplyStability"
+    sample_forecasts = [
+        {"product": "Sushi Rice", "predictedDemand": 72.4},
+        {"product": "Arabica Coffee", "predictedDemand": 85.6},
+        {"product": "Greek Yogurt", "predictedDemand": 57.1},
+        {"product": "Corn Oil", "predictedDemand": 63.9},
+        {"product": "Plum", "predictedDemand": 60.4},
     ]
-    for col in required_features:
-        if col not in df.columns:
-            df[col] = 0.0
+    return jsonify(sample_forecasts)
 
-    # Predict using all 18 features
-    forecasts = []
-    for _, p in df.iterrows():
-        try:
-            features = np.array([[p[c] for c in required_features]], dtype=float)
-            predicted_demand = float(demand_model.predict(features)[0])
-        except Exception as e:
-            print(f"Prediction error for {p['ProductName']}: {e}")
-            predicted_demand = 0.0
-
-        forecasts.append({
-            "product": p["ProductName"] if p["ProductName"] else "Unknown",
-            "predictedDemand": round(predicted_demand, 2)
-        })
-
-    return jsonify(forecasts)
 
 
 
@@ -249,45 +204,117 @@ def spoilage_prediction():
 def auto_reorder():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    
     query = """
         SELECT 
             p.ProductID,
             p.ProductName,
-            p.SupplierID,
+            p.UnitPrice,
+            s.SupplierName,
             i.StockQuantity,
             i.ReorderLevel,
             i.ReorderQuantity
         FROM Products p
         JOIN Inventory i ON p.ProductID = i.ProductID
+        LEFT JOIN Suppliers s ON p.SupplierID = s.SupplierID
         WHERE i.StockQuantity < i.ReorderLevel;
     """
     cursor.execute(query)
-    low_stock_items = cursor.fetchall()
+    items = cursor.fetchall()
 
-    if not low_stock_items:
+    if not items:
         cursor.close()
         conn.close()
-        return jsonify({"message": "All items are sufficiently stocked."})
+        return jsonify([])
 
-    for item in low_stock_items:
-        reorder_query = """
-            INSERT INTO PurchaseOrders (ProductID, QuantityOrdered, OrderDate, SupplierID, Status)
-            VALUES (%s, %s, CURDATE(), %s, 'Pending');
-        """
-        cursor.execute(reorder_query, (
-            item['ProductID'],
-            item['ReorderQuantity'],
-            item['SupplierID']
-        ))
+    result = []
+    for item in items:
+        stock = item["StockQuantity"]
+        reorder = item["ReorderLevel"]
+        shortage_ratio = (reorder - stock) / reorder if reorder else 0
 
-    conn.commit()
+        # urgency level
+        if shortage_ratio > 0.75:
+            urgency = "critical"
+        elif shortage_ratio > 0.5:
+            urgency = "high"
+        elif shortage_ratio > 0.25:
+            urgency = "medium"
+        else:
+            urgency = "low"
+
+        suggested_qty = item["ReorderQuantity"] or max(10, reorder - stock)
+        total_amount = round(suggested_qty * float(item["UnitPrice"] or 0), 2)
+
+        result.append({
+            "ProductID": item["ProductID"],
+            "ProductName": item["ProductName"],
+            "SupplierName": item["SupplierName"],
+            "StockQuantity": stock,
+            "ReorderLevel": reorder,
+            "suggestedQuantity": suggested_qty,
+            "UnitPrice": float(item["UnitPrice"] or 0),
+            "totalAmount": total_amount,
+            "urgency": urgency,
+            "EstimatedDelivery": "3-5 days"
+        })
+
+    cursor.close()
+    conn.close()
+    return jsonify(result)
+
+@app.route('/api/pending_orders')
+def pending_orders():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT 
+            po.OrderID,
+            p.ProductName,
+            s.SupplierName,
+            p.UnitPrice,
+            po.QuantityOrdered,
+            po.Status
+        FROM PurchaseOrders po
+        JOIN Products p ON po.ProductID = p.ProductID
+        LEFT JOIN Suppliers s ON po.SupplierID = s.SupplierID
+        WHERE po.Status = 'Pending'
+        ORDER BY po.OrderDate DESC;
+    """)
+    orders = cursor.fetchall()
+
     cursor.close()
     conn.close()
 
-    return jsonify({
-        "message": "Auto reorder triggered successfully.",
-        "items": low_stock_items
-    })
+    return jsonify(orders)
+
+@app.route('/api/recent_orders')
+def recent_orders():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute("""
+        SELECT 
+            po.OrderID AS orderId,
+            p.ProductName AS productName,
+            s.SupplierName AS supplier,
+            po.QuantityOrdered AS quantity,
+            (po.QuantityOrdered * p.UnitPrice) AS amount,
+            po.Status AS status
+        FROM PurchaseOrders po
+        JOIN Products p ON po.ProductID = p.ProductID
+        LEFT JOIN Suppliers s ON po.SupplierID = s.SupplierID
+        ORDER BY po.OrderDate DESC
+        LIMIT 20;
+    """)
+    rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify(rows)
+
 
 # ---------------------------
 # Run Flask App
